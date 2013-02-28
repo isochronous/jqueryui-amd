@@ -33,6 +33,17 @@ function mkDir(dir) {
     }
 }
 
+function readFile(filePath) {
+    var text = fs.readFileSync(filePath, 'utf8');
+
+    //Remove BOM just in case
+    if (text.indexOf('\uFEFF') === 0) {
+        text = text.substring(1, text.length);
+    }
+
+    return text;
+}
+
 /**
  * Converts the contents of a file to an AMD module.
  * @param {String} contents the file contents.
@@ -67,6 +78,8 @@ function convert(fileName, contents) {
     //an explicit dependency for it.
     if (fileParts[fileParts.length - 1].indexOf('datepicker-') === 0) {
         files.push("'jqueryui/datepicker'");
+    } else if (fileParts[fileParts.length - 1].indexOf('timepicker-') === 0) {
+        files.push("'jqueryui/timepicker'");
     }
 
     //Make sure directories exist in the jqueryui section.
@@ -80,15 +93,20 @@ function convert(fileName, contents) {
 
     if (match) {
         match[1].replace(filesRegExp, function (match, depName) {
-            files.push("'./" + depName
+            var processed = depName
                              //Remove .ui from the name if it is there,
                              //since it is already implied by the jqueryui
                              //name
                              .replace(/\.ui\./, '.')
                              .replace(/^jquery\./, '')
                              //Convert to module name.
-                             .replace(dotRegExp, '/') +
-                       "'");
+                             .replace(dotRegExp, '/');
+            // If this is an effects file, and it depends on another effects file, remove the extra 'effects' dir from
+            // the dependency, as the path will just be `./dep` instead of `./effects/dep`
+            if (/effects\./.test(fileName) && /effects\//.test(processed)) {
+                processed = processed.replace(/effects\//, '');
+            }
+            files.push("'./" + processed + "'");
         });
     }
 
@@ -129,7 +147,7 @@ jqPaths.forEach(function (fileName) {
     var srcPath = jqUiSrcDir + fileName;
     if (fs.statSync(srcPath).isFile() && jsFileRegExp.test(srcPath)) {
         //console.log("Converting file: " + convertPath);
-        convert(fileName, fs.readFileSync(srcPath, 'utf8'));
+        convert(fileName, readFile(srcPath));
     }
 });
 
@@ -139,7 +157,7 @@ jqPaths.forEach(function (fileName) {
     var srcPath = jqUiSrcDir + 'i18n/' + fileName;
     if (fs.statSync(srcPath).isFile() && jsFileRegExp.test(srcPath)) {
         //console.log("Converting file: " + convertPath);
-        convert(fileName, fs.readFileSync(srcPath, 'utf8'));
+        convert(fileName, readFile(srcPath));
     }
 });
 
